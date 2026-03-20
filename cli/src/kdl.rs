@@ -25,6 +25,13 @@ pub fn format_kdl(
     version: KdlVersion,
 ) -> String {
     let format_config = config.get_formatter_config();
+
+    // In KDL v2, node-space excludes single-line-comment, so the parser stores
+    // inline comments inside `terminator` (e.g. "// comment\n") rather than
+    // `before_terminator`. autoformat_config() discards them by replacing any
+    // non-newline terminator with "\n". Rescue them first.
+    rescue_terminator_comments(input.nodes_mut());
+
     input.autoformat_config(&format_config);
 
     lint_comments_in_doc(&mut input);
@@ -47,6 +54,30 @@ pub fn format_kdl(
     }
 
     input.to_string()
+}
+
+/// Move inline comments from `terminator` to `before_terminator` so that
+/// `autoformat_config` preserves them. In KDL v2, `node-space` does not
+/// include `single-line-comment`, so the parser leaves `"// comment\n"` in
+/// `terminator`. `autoformat_config` replaces any terminator that doesn't
+/// start with `\n` with just `"\n"`, silently dropping the comment.
+fn rescue_terminator_comments(nodes: &mut [kdl::KdlNode]) {
+    for node in nodes.iter_mut() {
+        if let Some(fmt) = node.format_mut() {
+            if fmt.terminator.contains("//") || fmt.terminator.contains("/*") {
+                // Strip the trailing newline(s) to get just the comment text.
+                let comment = fmt.terminator
+                    .trim_end_matches('\n')
+                    .trim_end_matches('\r')
+                    .to_string();
+                fmt.before_terminator.push_str(&comment);
+                fmt.terminator = "\n".to_string();
+            }
+        }
+        if let Some(children) = node.children_mut() {
+            rescue_terminator_comments(children.nodes_mut());
+        }
+    }
 }
 
 fn capitalize_first(s: &str) -> String {
@@ -219,6 +250,33 @@ mod test {
         assert!(
             !formatted.contains("  "),
             "expected trailing whitespace stripped from inline comment, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_rescue_and_lint_inline_comment_v2() {
+        // In KDL v2 the parser puts inline comments into `terminator`, not
+        // `before_terminator`. Our rescue pass moves them before autoformat discards them.
+        let input = "node // inline lowercase  \n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V2)).expect("it to parse valid kdl");
+        let formatted = format_kdl(doc, &KdlFmtConfig::default(), version);
+        assert!(
+            formatted.contains("// Inline lowercase"),
+            "expected rescued+capitalised v2 inline comment, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_rescue_inline_comment_v2_with_entries() {
+        // Inline comment after an entry value should also be rescued.
+        let input = "node \"val\" // entry comment  \n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V2)).expect("it to parse valid kdl");
+        let formatted = format_kdl(doc, &KdlFmtConfig::default(), version);
+        assert!(
+            formatted.contains("// Entry comment"),
+            "expected rescued+capitalised entry-line comment, got: {formatted:?}"
         );
     }
 

@@ -300,14 +300,14 @@ mod auto {
             .write_stdin(BROKEN_V1_CODE)
             .assert()
             .success()
-            .stdout(predicates::str::contains(FORMATTED_V1_CODE));
+            .stdout(predicates::str::diff(FORMATTED_V1_CODE));
 
         format_command(None)
             .arg("--stdin")
             .write_stdin(BROKEN_V2_CODE)
             .assert()
             .success()
-            .stdout(predicates::str::contains(FORMATTED_V2_CODE));
+            .stdout(predicates::str::diff(FORMATTED_V2_CODE));
     }
 
     #[test]
@@ -406,7 +406,7 @@ mod v1 {
             .write_stdin(BROKEN_V1_CODE)
             .assert()
             .success()
-            .stdout(predicates::str::contains(FORMATTED_V1_CODE));
+            .stdout(predicates::str::diff(FORMATTED_V1_CODE));
     }
 
     #[test]
@@ -520,7 +520,7 @@ mod v2 {
             .write_stdin(BROKEN_V2_CODE)
             .assert()
             .success()
-            .stdout(predicates::str::contains(FORMATTED_V2_CODE));
+            .stdout(predicates::str::diff(FORMATTED_V2_CODE));
     }
 
     #[test]

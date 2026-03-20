@@ -17,9 +17,7 @@ fn run_from_stdin(args: &FormatCommandArguments, config: &KdlFmtConfig) -> Resul
     let actual_config =
         KdlFmtConfig::get_editorconfig_or_default(config, &std::path::PathBuf::from("dummy.kdl"));
 
-    let format_config = actual_config.get_formatter_config();
-
-    let formatted = format_kdl(parsed, &format_config, version);
+    let formatted = format_kdl(parsed, &actual_config, version);
 
     if input == formatted {
         Ok(())
@@ -65,9 +63,7 @@ pub fn run_from_args(
                 &std::path::PathBuf::from(entry.path()),
             );
 
-            let format_config = actual_config.get_formatter_config();
-
-            let formatted = format_kdl(parsed, &format_config, version);
+            let formatted = format_kdl(parsed, &actual_config, version);
 
             if formatted != input {
                 print_check_changed_file(file_path);

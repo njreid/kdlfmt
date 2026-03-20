@@ -1,4 +1,9 @@
-use crate::{cli::InitCommandArguments, config::KdlFmtConfig, error::KdlFmtError, kdl::format_kdl};
+use crate::{
+    cli::InitCommandArguments,
+    config::KdlFmtConfig,
+    error::KdlFmtError,
+    kdl::format_kdl,
+};
 
 #[inline]
 pub fn run(args: &InitCommandArguments) -> Result<(), KdlFmtError> {
@@ -22,9 +27,19 @@ pub fn run(args: &InitCommandArguments) -> Result<(), KdlFmtError> {
     use_tab_node.push(kdl::KdlEntry::from(kdl::KdlValue::Bool(config.use_tabs)));
     doc.nodes_mut().push(use_tab_node);
 
-    let format_config = kdl::FormatConfig::builder().indent(&config.indent).build();
+    let mut newlines_node = kdl::KdlNode::new(KdlFmtConfig::newlines_before_comments_key());
+    newlines_node.push(kdl::KdlEntry::from(kdl::KdlValue::Integer(
+        config.newlines_before_comments as i128,
+    )));
+    doc.nodes_mut().push(newlines_node);
 
-    let doc = format_kdl(doc, &format_config, args.kdl_version.unwrap_or_default());
+    let mut justify_node = kdl::KdlNode::new(KdlFmtConfig::justify_first_property_key());
+    justify_node.push(kdl::KdlEntry::from(kdl::KdlValue::Bool(
+        config.justify_first_property,
+    )));
+    doc.nodes_mut().push(justify_node);
+
+    let doc = format_kdl(doc, &KdlFmtConfig::default(), args.kdl_version.unwrap_or_default());
 
     std::fs::write(config_path, &doc).map_err(KdlFmtError::Io)
 }

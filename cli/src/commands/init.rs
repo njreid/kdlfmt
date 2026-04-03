@@ -28,9 +28,13 @@ pub fn run(args: &InitCommandArguments) -> Result<(), KdlFmtError> {
     doc.nodes_mut().push(use_tab_node);
 
     let mut newlines_node = kdl::KdlNode::new(KdlFmtConfig::newlines_before_comments_key());
-    newlines_node.push(kdl::KdlEntry::from(kdl::KdlValue::Integer(
-        config.newlines_before_comments as i128,
-    )));
+    let mut newlines_children = kdl::KdlDocument::new();
+    for (i, &n) in config.newlines_before_comments.iter().enumerate() {
+        let mut level_node = kdl::KdlNode::new(format!("level{}", i + 1));
+        level_node.push(kdl::KdlEntry::from(kdl::KdlValue::Integer(n as i128)));
+        newlines_children.nodes_mut().push(level_node);
+    }
+    newlines_node.set_children(newlines_children);
     doc.nodes_mut().push(newlines_node);
 
     let mut justify_node = kdl::KdlNode::new(KdlFmtConfig::justify_first_property_key());
@@ -38,6 +42,18 @@ pub fn run(args: &InitCommandArguments) -> Result<(), KdlFmtError> {
         config.justify_first_property,
     )));
     doc.nodes_mut().push(justify_node);
+
+    let mut trailing_node = kdl::KdlNode::new(KdlFmtConfig::remove_trailing_blank_lines_key());
+    trailing_node.push(kdl::KdlEntry::from(kdl::KdlValue::Bool(
+        config.remove_trailing_blank_lines_in_blocks,
+    )));
+    doc.nodes_mut().push(trailing_node);
+
+    let mut collapse_node = kdl::KdlNode::new(KdlFmtConfig::collapse_empty_blocks_key());
+    collapse_node.push(kdl::KdlEntry::from(kdl::KdlValue::Bool(
+        config.collapse_empty_blocks,
+    )));
+    doc.nodes_mut().push(collapse_node);
 
     let doc = format_kdl(doc, &KdlFmtConfig::default(), args.kdl_version.unwrap_or_default());
 

@@ -8,8 +8,19 @@ pub struct KdlFmtConfig {
     pub(crate) from_kdlfmt_file: bool,
     pub indent: String,
     pub use_tabs: bool,
-    pub newlines_before_comments: u32,
+    /// Extra blank lines before comment-bearing nodes at each depth.
+    /// Index 0 = level1 (top-level), index 4 = level5.
+    pub newlines_before_comments: [u32; 5],
     pub justify_first_property: bool,
+    /// Extra blank lines after the closing `}` of block nodes at each depth.
+    /// Index 0 = level1 (top-level), index 4 = level5.
+    pub newlines_after_close: [u32; 5],
+    /// Convert runs of N or more consecutive `//` comment lines to `/* */` blocks.
+    pub n_comment_lines_to_multiline: Option<u32>,
+    /// Strip blank lines immediately before the closing `}` of every block.
+    pub remove_trailing_blank_lines_in_blocks: bool,
+    /// Collapse blocks with no child nodes to inline `{}`.
+    pub collapse_empty_blocks: bool,
 }
 
 impl Default for KdlFmtConfig {
@@ -19,8 +30,12 @@ impl Default for KdlFmtConfig {
             from_kdlfmt_file: false,
             indent: FormatConfig::default().indent.to_string(),
             use_tabs: false,
-            newlines_before_comments: 0,
+            newlines_before_comments: [0; 5],
             justify_first_property: false,
+            newlines_after_close: [0; 5],
+            n_comment_lines_to_multiline: None,
+            remove_trailing_blank_lines_in_blocks: false,
+            collapse_empty_blocks: false,
         }
     }
 }
@@ -68,12 +83,19 @@ impl KdlFmtConfig {
                 config.from_kdlfmt_file = true;
             }
 
-            if let Some(n) = doc
-                .get_arg(Self::newlines_before_comments_key())
-                .and_then(kdl::KdlValue::as_integer)
-            {
-                config.newlines_before_comments = n.max(0) as u32;
-                config.from_kdlfmt_file = true;
+            if let Some(node) = doc.get(Self::newlines_before_comments_key()) {
+                if let Some(children) = node.children() {
+                    for i in 1..=5usize {
+                        let key = format!("level{i}");
+                        if let Some(n) = children
+                            .get_arg(&key)
+                            .and_then(kdl::KdlValue::as_integer)
+                        {
+                            config.newlines_before_comments[i - 1] = n.max(0) as u32;
+                            config.from_kdlfmt_file = true;
+                        }
+                    }
+                }
             }
 
             if doc
@@ -82,6 +104,47 @@ impl KdlFmtConfig {
                 == Some(true)
             {
                 config.justify_first_property = true;
+                config.from_kdlfmt_file = true;
+            }
+
+            if let Some(node) = doc.get(Self::newlines_after_close_key()) {
+                if let Some(children) = node.children() {
+                    for i in 1..=5usize {
+                        let key = format!("level{i}");
+                        if let Some(n) = children
+                            .get_arg(&key)
+                            .and_then(kdl::KdlValue::as_integer)
+                        {
+                            config.newlines_after_close[i - 1] = n.clamp(0, 10) as u32;
+                            config.from_kdlfmt_file = true;
+                        }
+                    }
+                }
+            }
+
+            if let Some(n) = doc
+                .get_arg(Self::n_comment_lines_to_multiline_key())
+                .and_then(kdl::KdlValue::as_integer)
+            {
+                config.n_comment_lines_to_multiline = Some(n.max(2) as u32);
+                config.from_kdlfmt_file = true;
+            }
+
+            if doc
+                .get_arg(Self::remove_trailing_blank_lines_key())
+                .and_then(kdl::KdlValue::as_bool)
+                == Some(true)
+            {
+                config.remove_trailing_blank_lines_in_blocks = true;
+                config.from_kdlfmt_file = true;
+            }
+
+            if doc
+                .get_arg(Self::collapse_empty_blocks_key())
+                .and_then(kdl::KdlValue::as_bool)
+                == Some(true)
+            {
+                config.collapse_empty_blocks = true;
                 config.from_kdlfmt_file = true;
             }
         }
@@ -125,6 +188,26 @@ impl KdlFmtConfig {
     }
 
     #[inline]
+    pub const fn newlines_after_close_key() -> &'static str {
+        "newlines_after_close"
+    }
+
+    #[inline]
+    pub const fn n_comment_lines_to_multiline_key() -> &'static str {
+        "n_comment_lines_to_multiline"
+    }
+
+    #[inline]
+    pub const fn remove_trailing_blank_lines_key() -> &'static str {
+        "remove_trailing_blank_lines_in_blocks"
+    }
+
+    #[inline]
+    pub const fn collapse_empty_blocks_key() -> &'static str {
+        "collapse_empty_blocks"
+    }
+
+    #[inline]
     pub fn get_editorconfig_or_default(&self, path: &std::path::Path) -> Self {
         if !self.from_kdlfmt_file
             && let Ok(mut properties) = ec4rs::properties_of(path)
@@ -159,6 +242,10 @@ impl KdlFmtConfig {
                 from_kdlfmt_file: false,
                 newlines_before_comments: self.newlines_before_comments,
                 justify_first_property: self.justify_first_property,
+                newlines_after_close: self.newlines_after_close,
+                n_comment_lines_to_multiline: self.n_comment_lines_to_multiline,
+                remove_trailing_blank_lines_in_blocks: self.remove_trailing_blank_lines_in_blocks,
+                collapse_empty_blocks: self.collapse_empty_blocks,
             };
         }
 

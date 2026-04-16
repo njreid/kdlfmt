@@ -1,0 +1,17 @@
+[
+  {
+    "type": null,
+    "name": "foo123",
+    "args": [],
+    "props": {},
+    "children": [
+      {
+        "type": null,
+        "name": "bar",
+        "args": [],
+        "props": {},
+        "children": []
+      }
+    ]
+  }
+]

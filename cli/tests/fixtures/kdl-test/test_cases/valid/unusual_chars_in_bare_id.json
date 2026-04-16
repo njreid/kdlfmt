@@ -1,0 +1,17 @@
+[
+  {
+    "type": null,
+    "name": "foo123~!@$%^&*.:'|?+<>,`-_",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "weeee"
+        }
+      }
+    ],
+    "props": {},
+    "children": []
+  }
+]

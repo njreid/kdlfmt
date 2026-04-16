@@ -1,0 +1,17 @@
+[
+  {
+    "type": null,
+    "name": "node",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "\"\"\"triple-quote\"\"\"\n##\"too few quotes\"##\n#\"\"\"too few #\"\"\"#"
+        }
+      }
+    ],
+    "props": {},
+    "children": []
+  }
+]

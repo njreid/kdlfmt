@@ -1,0 +1,100 @@
+[
+  {
+    "type": null,
+    "name": "node",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "1.0"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "1.0"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "10000000000.0"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "0.0000000001"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "1.0"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "7.0"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "2.0"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "arg"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "arg"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "arg\\"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "boolean",
+          "value": "true"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "boolean",
+          "value": "false"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "null"
+        }
+      }
+    ],
+    "props": {},
+    "children": []
+  }
+]

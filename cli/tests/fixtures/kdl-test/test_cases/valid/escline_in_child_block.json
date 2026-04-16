@@ -1,0 +1,24 @@
+[
+  {
+    "type": null,
+    "name": "parent",
+    "args": [],
+    "props": {},
+    "children": [
+      {
+        "type": null,
+        "name": "child",
+        "args": [],
+        "props": {},
+        "children": []
+      },
+      {
+        "type": null,
+        "name": "child",
+        "args": [],
+        "props": {},
+        "children": []
+      }
+    ]
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "type": null,
+    "name": "node_1",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "\"arg\\n\"and #stuff"
+        }
+      }
+    ],
+    "props": {},
+    "children": []
+  },
+  {
+    "type": null,
+    "name": "node_2",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "#\"arg\\n\"#and #stuff"
+        }
+      }
+    ],
+    "props": {},
+    "children": []
+  }
+]

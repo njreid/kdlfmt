@@ -1,0 +1,45 @@
+[
+  {
+    "type": null,
+    "name": "node",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "Hello\n\tWorld"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "Hello\n\tWorld"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "Hello\n\tWorld"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "Hello\n\tWorld"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "Hello\n\tWorld"
+        }
+      }
+    ],
+    "props": {},
+    "children": []
+  }
+]

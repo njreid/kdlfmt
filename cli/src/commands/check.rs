@@ -1,3 +1,6 @@
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use crate::{
     cli::{FormatCommandArguments, read_stdin},
     config::KdlFmtConfig,
@@ -14,8 +17,9 @@ fn run_from_stdin(args: &FormatCommandArguments, config: &KdlFmtConfig) -> Resul
     let (parsed, version) =
         parse_kdl(&input, args.kdl_version).map_err(|error| KdlFmtError::ParseKdl(None, error))?;
 
+    let cache = dashmap::DashMap::new();
     let actual_config =
-        KdlFmtConfig::get_editorconfig_or_default(config, &std::path::PathBuf::from("dummy.kdl"));
+        config.get_editorconfig_or_default(&std::path::PathBuf::from("dummy.kdl"), &cache);
 
     let formatted = format_kdl(parsed, &actual_config, version);
 
@@ -43,37 +47,42 @@ pub fn run_from_args(
 
     let walker = setup_walker(paths);
 
-    let mut file_count = 0;
+    let file_count = AtomicUsize::new(0);
+    let cache = dashmap::DashMap::new();
 
-    for entry in walker {
-        let file_path = entry.path();
+    walker
+        .par_bridge()
+        .map(|entry| {
+            let file_path = entry.path();
 
-        if file_path.is_file()
-            && file_path
-                .extension()
-                .is_some_and(|ft| ft == KDL_FILE_EXTENSION)
-        {
-            let input = std::fs::read_to_string(file_path).map_err(KdlFmtError::Io)?;
+            if file_path.is_file()
+                && file_path
+                    .extension()
+                    .is_some_and(|ft| ft == KDL_FILE_EXTENSION)
+            {
+                let input = std::fs::read_to_string(file_path).map_err(KdlFmtError::Io)?;
 
-            let (parsed, version) = parse_kdl(&input, args.kdl_version)
-                .map_err(|error| KdlFmtError::ParseKdl(Some(file_path.to_path_buf()), error))?;
+                let (parsed, version) = parse_kdl(&input, args.kdl_version)
+                    .map_err(|error| KdlFmtError::ParseKdl(Some(file_path.to_path_buf()), error))?;
 
-            let actual_config = KdlFmtConfig::get_editorconfig_or_default(
-                config,
-                &std::path::PathBuf::from(entry.path()),
-            );
+                let actual_config = config.get_editorconfig_or_default(
+                    file_path,
+                    &cache,
+                );
 
-            let formatted = format_kdl(parsed, &actual_config, version);
+                let formatted = format_kdl(parsed, &actual_config, version);
 
-            if formatted != input {
-                print_check_changed_file(file_path);
+                if formatted != input {
+                    print_check_changed_file(file_path);
 
-                file_count += 1;
+                    file_count.fetch_add(1, Ordering::SeqCst);
+                }
             }
-        }
-    }
+            Ok(())
+        })
+        .collect::<Result<Vec<()>, KdlFmtError>>()?;
 
-    if file_count == 0 {
+    if file_count.into_inner() == 0 {
         Ok(())
     } else {
         Err(KdlFmtError::CheckModeChanges)

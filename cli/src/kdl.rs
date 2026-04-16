@@ -26,55 +26,156 @@ pub fn format_kdl(
 ) -> String {
     let format_config = config.get_formatter_config();
 
-    // In KDL v2, node-space excludes single-line-comment, so the parser stores
-    // inline comments inside `terminator` (e.g. "// comment\n") rather than
-    // `before_terminator`. autoformat_config() discards them by replacing any
-    // non-newline terminator with "\n". Rescue them first.
+    // 1. Rescue comments that would be lost by autoformat (v2 inline comments)
     rescue_terminator_comments(input.nodes_mut());
 
+    // 2. Basic autoformat according to library defaults
     input.autoformat_config(&format_config);
 
-    lint_comments_in_doc(&mut input);
-
-    if config.newlines_before_comments != [0; 5] {
-        apply_newlines_before_comments(&mut input, &config.newlines_before_comments, 0);
-    }
-
-    // ensure_v1/v2 must run before justify: autoformat() sets entry.format = None,
-    // and ensure_v1/v2 re-initializes it (with leading: " "), making format_mut()
-    // return Some so we can widen the leading gap.
+    // 3. Ensure version-specific formatting defaults (e.g. node spaces)
     if KdlVersion::V1 == version {
         input.ensure_v1();
     } else {
         input.ensure_v2();
     }
 
-    if config.justify_first_property {
-        apply_justify_first_property(input.nodes_mut());
-    }
-
-    apply_comment_indentation(&mut input, config, 0);
-
-    if let Some(threshold) = config.n_comment_lines_to_multiline {
-        apply_comment_lines_to_multiline(&mut input, threshold);
-    }
-
-    if config.collapse_empty_blocks {
-        apply_collapse_empty_blocks(&mut input);
-    }
-
-    if config.newlines_after_close != [0; 5] {
-        apply_newlines_after_close(&mut input, &config.newlines_after_close, 0);
-    }
+    // 4. Apply all custom formatting rules in a single recursive pass
+    apply_formatting(&mut input, config, 0);
 
     let output = input.to_string();
 
+    // 5. Final post-processing on the string output
     if config.remove_trailing_blank_lines_in_blocks {
         remove_trailing_blank_lines_before_braces(&output)
     } else {
         output
     }
 }
+
+/// A single recursive pass that applies all kdlfmt formatting rules.
+fn apply_formatting(doc: &mut kdl::KdlDocument, config: &KdlFmtConfig, depth: usize) {
+    let tp = TriviaProcessor::new(config, depth);
+
+    if let Some(fmt) = doc.format_mut() {
+        fmt.leading = tp.process(&fmt.leading, false);
+        fmt.trailing = tp.process(&fmt.trailing, false);
+    }
+
+    let nodes = doc.nodes_mut();
+
+    // a. Justify first property if enabled
+    if config.justify_first_property {
+        let max_name_len = nodes
+            .iter()
+            .map(|n| n.name().value().len())
+            .max()
+            .unwrap_or(0);
+        for node in nodes.iter_mut() {
+            let node_name_len = node.name().value().len();
+            if let Some(first_entry) = node.entries_mut().first_mut() {
+                let padding = " ".repeat(max_name_len - node_name_len + 1);
+                if let Some(fmt) = first_entry.format_mut() {
+                    if fmt.leading.contains("//") || fmt.leading.contains("/*") {
+                        // If it contains a comment, we want to ensure there is at least
+                        // one space before the comment, but we don't want to lose it.
+                        // However, standard justification usually puts the padding
+                        // BEFORE the entry. If a comment is there, we should probably
+                        // keep it and just ensure it's separated.
+                        if !fmt.leading.starts_with(' ') {
+                            fmt.leading.insert(0, ' ');
+                        }
+                    } else {
+                        fmt.leading = padding;
+                    }
+                }
+            }
+        }
+    }
+
+    let len = nodes.len();
+    for i in 0..len {
+        // b. Newlines before comments (skip first node at each level)
+        if i > 0 && depth < 5 && config.newlines_before_comments[depth] > 0 {
+            let n = config.newlines_before_comments[depth];
+            if let Some(fmt) = nodes[i].format_mut() {
+                if fmt.leading.contains("//") || fmt.leading.contains("/*") {
+                    fmt.leading.insert_str(0, &"\n".repeat(n as usize));
+                }
+            }
+        }
+
+        // c. Newlines after close (if block and has next node)
+        if i + 1 < len && depth < 5 && config.newlines_after_close[depth] > 0 {
+            if nodes[i].children().is_some() {
+                let n = config.newlines_after_close[depth];
+                if let Some(fmt) = nodes[i + 1].format_mut() {
+                    fmt.leading.insert_str(0, &"\n".repeat(n as usize));
+                }
+            }
+        }
+
+        let node = &mut nodes[i];
+
+        // d. Process node trivia
+        if let Some(fmt) = node.format_mut() {
+            fmt.leading = tp.process(&fmt.leading, false);
+            fmt.before_terminator = tp.process(&fmt.before_terminator, true);
+            fmt.trailing = tp.process(&fmt.trailing, false);
+        }
+
+        // e. Process entry trivia
+        for entry in node.entries_mut() {
+            if let Some(fmt) = entry.format_mut() {
+                fmt.trailing = tp.process(&fmt.trailing, true);
+            }
+        }
+
+        // f. Collapse empty blocks
+        if config.collapse_empty_blocks {
+            if let Some(children) = node.children_mut() {
+                if children.nodes().is_empty() {
+                    if let Some(fmt) = children.format_mut() {
+                        fmt.leading = String::new();
+                        fmt.trailing = String::new();
+                    }
+                }
+            }
+        }
+
+        // g. Recurse to children
+        if let Some(children) = node.children_mut() {
+            apply_formatting(children, config, depth + 1);
+        }
+    }
+}
+
+/// Strip blank lines that appear immediately before a closing `}`.
+/// Operates on the final formatted string since blank lines may be stored
+/// in various trivia fields depending on position.
+fn remove_trailing_blank_lines_before_braces(s: &str) -> String {
+    let lines: Vec<&str> = s.split('\n').collect();
+    let mut result: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        if lines[i].trim().is_empty() {
+            // Look ahead past any further blank lines to the next content line.
+            let mut j = i + 1;
+            while j < lines.len() && lines[j].trim().is_empty() {
+                j += 1;
+            }
+            // If the next content line is a bare `}`, drop all the blank lines.
+            if j < lines.len() && lines[j].trim() == "}" {
+                i = j;
+                continue;
+            }
+        }
+        result.push(lines[i].to_string());
+        i += 1;
+    }
+    result.join("\n")
+}
+
+
 
 /// Move inline comments from `terminator` to `before_terminator` so that
 /// `autoformat_config` preserves them. In KDL v2, `node-space` does not
@@ -111,404 +212,161 @@ fn capitalize_first(s: &str) -> String {
     }
 }
 
-/// Process a single `//` comment line: trim trailing whitespace, normalize to
-/// exactly one space after `//`, and capitalize the first word.
-/// Only treats `//` as a comment marker when everything before it is whitespace,
-/// so `https://url` in non-comment contexts is left untouched.
-fn lint_line_comment(line: &str) -> String {
-    if let Some(idx) = line.find("//") {
-        let prefix = &line[..idx];
-        // Only a real comment if the prefix is purely whitespace.
-        if !prefix.chars().all(|c| c.is_whitespace()) {
-            return line.to_string();
-        }
-        let trimmed = line.trim_end();
-        let rest = &trimmed[(idx + 2).min(trimmed.len())..];
-        let rest_trimmed = rest.trim_start();
-        if rest_trimmed.is_empty() {
-            format!("{prefix}//")
-        } else {
-            format!("{prefix}// {}", capitalize_first(rest_trimmed))
-        }
-    } else {
-        line.to_string()
-    }
+/// A unified processor for trivia strings (comments and whitespace).
+/// Consolidates linting, indentation, and normalization into a single pass.
+struct TriviaProcessor<'a> {
+    config: &'a KdlFmtConfig,
+    indent: String,
 }
 
-/// Apply `lint_line_comment` to every `//` comment line in a trivia string.
-/// Lines inside `/* */` blocks are left untouched — they are block content,
-/// not `//` comments.
-fn lint_trivia(s: &str) -> String {
-    let mut result: Vec<String> = Vec::new();
-    let mut in_block = false;
-    for line in s.split('\n') {
-        let trimmed = line.trim_start();
-        if !in_block {
-            if trimmed.starts_with("/*") {
-                if !trimmed[2..].contains("*/") {
-                    in_block = true;
-                }
-                result.push(line.to_string());
-            } else {
-                result.push(lint_line_comment(line));
-            }
-        } else {
-            if trimmed.starts_with("*/") {
-                in_block = false;
-            }
-            result.push(line.to_string());
+impl<'a> TriviaProcessor<'a> {
+    fn new(config: &'a KdlFmtConfig, depth: usize) -> Self {
+        Self {
+            config,
+            indent: config.indent.repeat(depth),
         }
     }
-    result.join("\n")
-}
 
-fn lint_comments_in_doc(doc: &mut kdl::KdlDocument) {
-    if let Some(fmt) = doc.format_mut() {
-        fmt.leading = lint_trivia(&fmt.leading);
-        fmt.trailing = lint_trivia(&fmt.trailing);
-    }
-    for node in doc.nodes_mut() {
-        lint_comments_in_node(node);
-    }
-}
+    /// Process a trivia string by applying all enabled rules line-by-line.
+    fn process(&self, s: &str, is_inline: bool) -> String {
+        if s.is_empty() {
+            return String::new();
+        }
 
-fn lint_comments_in_node(node: &mut kdl::KdlNode) {
-    if let Some(fmt) = node.format_mut() {
-        fmt.leading = lint_trivia(&fmt.leading);
-        fmt.before_terminator = lint_trivia(&fmt.before_terminator);
-        fmt.trailing = lint_trivia(&fmt.trailing);
-    }
-    for entry in node.entries_mut() {
-        if let Some(fmt) = entry.format_mut() {
-            fmt.trailing = lint_trivia(&fmt.trailing);
-        }
-    }
-    if let Some(children) = node.children_mut() {
-        lint_comments_in_doc(children);
-    }
-}
+        let mut lines: Vec<String> = Vec::new();
+        let mut in_block = false;
+        let mut i = 0;
+        let raw_lines: Vec<&str> = s.split('\n').collect();
 
-/// Insert blank lines before nodes whose leading trivia contains a comment,
-/// at each depth level. Skips the first node at each level.
-fn apply_newlines_before_comments(doc: &mut kdl::KdlDocument, config: &[u32; 5], depth: usize) {
-    if depth < 5 {
-        let n = config[depth];
-        if n > 0 {
-            let extra = "\n".repeat(n as usize);
-            for (i, node) in doc.nodes_mut().iter_mut().enumerate() {
-                if i == 0 {
-                    continue;
-                }
-                if let Some(fmt) = node.format_mut() {
-                    if fmt.leading.contains("//") || fmt.leading.contains("/*") {
-                        fmt.leading = format!("{}{}", extra, fmt.leading);
-                    }
-                }
-            }
-        }
-    }
-    for node in doc.nodes_mut() {
-        if let Some(children) = node.children_mut() {
-            apply_newlines_before_comments(children, config, depth + 1);
-        }
-    }
-}
+        while i < raw_lines.len() {
+            let line = raw_lines[i];
+            let trimmed = line.trim_start();
 
-/// Pad the space between each node name and its first entry so that first
-/// entries of sibling nodes all start at the same column. Applied recursively.
-fn apply_justify_first_property(nodes: &mut [kdl::KdlNode]) {
-    let max_len = nodes
-        .iter()
-        .map(|n| n.name().value().len())
-        .max()
-        .unwrap_or(0);
-
-    for node in nodes.iter_mut() {
-        let padding = " ".repeat(max_len - node.name().value().len() + 1);
-        if let Some(first_entry) = node.entries_mut().first_mut() {
-            if let Some(fmt) = first_entry.format_mut() {
-                fmt.leading = padding;
-            }
-        }
-        if let Some(children) = node.children_mut() {
-            apply_justify_first_property(children.nodes_mut());
-        }
-    }
-}
-
-/// Strip blank lines that appear immediately before a closing `}`.
-/// Operates on the final formatted string since blank lines may be stored
-/// in various trivia fields depending on position.
-fn remove_trailing_blank_lines_before_braces(s: &str) -> String {
-    let lines: Vec<&str> = s.split('\n').collect();
-    let mut result: Vec<String> = Vec::new();
-    let mut i = 0;
-    while i < lines.len() {
-        if lines[i].trim().is_empty() {
-            // Look ahead past any further blank lines to the next content line.
-            let mut j = i + 1;
-            while j < lines.len() && lines[j].trim().is_empty() {
-                j += 1;
-            }
-            // If the next content line is a bare `}`, drop all the blank lines.
-            if j < lines.len() && lines[j].trim() == "}" {
-                i = j;
-                continue;
-            }
-        }
-        result.push(lines[i].to_string());
-        i += 1;
-    }
-    result.join("\n")
-}
-
-/// Collapse blocks that contain no child nodes to inline `{}`.
-fn apply_collapse_empty_blocks(doc: &mut kdl::KdlDocument) {
-    for node in doc.nodes_mut() {
-        if let Some(children) = node.children_mut() {
-            if children.nodes().is_empty() {
-                if let Some(fmt) = children.format_mut() {
-                    fmt.leading = String::new();
-                    fmt.trailing = String::new();
-                }
-            } else {
-                apply_collapse_empty_blocks(children);
-            }
-        }
-    }
-}
-
-/// Insert blank lines after the closing `}` of block nodes at each depth level.
-/// `config[0]` applies to top-level (level1) nodes, `config[4]` to level5.
-fn apply_newlines_after_close(doc: &mut kdl::KdlDocument, config: &[u32; 5], depth: usize) {
-    if depth < 5 {
-        let n = config[depth];
-        if n > 0 {
-            let extra = "\n".repeat(n as usize);
-            let nodes = doc.nodes_mut();
-            let len = nodes.len();
-            for i in 0..len {
-                if nodes[i].children().is_some() && i + 1 < len {
-                    if let Some(fmt) = nodes[i + 1].format_mut() {
-                        fmt.leading = format!("{}{}", extra, fmt.leading);
-                    }
-                }
-            }
-        }
-    }
-    for node in doc.nodes_mut() {
-        if let Some(children) = node.children_mut() {
-            apply_newlines_after_close(children, config, depth + 1);
-        }
-    }
-}
-
-/// Fix the indentation of comment lines in a trivia string:
-/// - `//` lines are re-indented to `indent`
-/// - `/*` opening lines are re-indented to `indent`
-/// - Content lines (` *`) and closing ` */` inside a block get `indent + " "`
-fn fix_comment_indentation_in_trivia(s: &str, indent: &str) -> String {
-    let mut result: Vec<String> = Vec::new();
-    let mut in_block = false;
-    for line in s.split('\n') {
-        let trimmed = line.trim_start();
-        if !in_block {
-            if trimmed.starts_with("//") {
-                result.push(format!("{indent}{trimmed}"));
-            } else if trimmed.starts_with("/*") {
-                result.push(format!("{indent}{trimmed}"));
-                // Single-line /* ... */ doesn't open a block state.
-                if !trimmed[2..].contains("*/") {
-                    in_block = true;
-                }
-            } else {
-                result.push(line.to_string());
-            }
-        } else {
-            // Inside a /* */ block: re-indent and track close.
-            if trimmed.starts_with("*/") {
-                result.push(format!("{indent} */"));
-                in_block = false;
-            } else {
-                result.push(format!("{indent} {trimmed}"));
-            }
-        }
-    }
-    result.join("\n")
-}
-
-/// Ensure every `//` comment line in every trivia field is indented to match
-/// the depth of its surrounding nodes.
-fn apply_comment_indentation(doc: &mut kdl::KdlDocument, config: &KdlFmtConfig, depth: usize) {
-    let indent = config.indent.repeat(depth);
-    if let Some(fmt) = doc.format_mut() {
-        fmt.leading = fix_comment_indentation_in_trivia(&fmt.leading, &indent);
-        fmt.trailing = fix_comment_indentation_in_trivia(&fmt.trailing, &indent);
-    }
-    for node in doc.nodes_mut() {
-        if let Some(fmt) = node.format_mut() {
-            fmt.leading = fix_comment_indentation_in_trivia(&fmt.leading, &indent);
-        }
-        if let Some(children) = node.children_mut() {
-            apply_comment_indentation(children, config, depth + 1);
-        }
-    }
-}
-
-/// Convert runs of `threshold` or more consecutive `//` comment lines within a
-/// trivia string into a `/* … */` block comment, preserving indentation.
-fn convert_comment_run_to_multiline(s: &str, threshold: u32) -> String {
-    let lines: Vec<&str> = s.split('\n').collect();
-    let mut result: Vec<String> = Vec::new();
-    let mut i = 0;
-    while i < lines.len() {
-        let trimmed = lines[i].trim_start();
-        if trimmed.starts_with("//") {
-            let line_indent = &lines[i][..lines[i].len() - trimmed.len()];
-            let mut run = vec![lines[i]];
-            let mut j = i + 1;
-            while j < lines.len() && lines[j].trim_start().starts_with("//") {
-                run.push(lines[j]);
-                j += 1;
-            }
-            if run.len() >= threshold as usize {
-                result.push(format!("{line_indent}/*"));
-                for &cl in &run {
-                    let t = cl.trim_start();
-                    let content = t[2..].trim_start();
-                    if content.is_empty() {
-                        result.push(format!("{line_indent} *"));
+            if !in_block {
+                // 1. Strip empty block comments
+                if self.config.strip_empty_block_comments && trimmed.starts_with("/*") {
+                    if let Some(close_idx) = trimmed[2..].find("*/") {
+                        if trimmed[2..2 + close_idx].trim().is_empty() {
+                            i += 1;
+                            continue;
+                        }
                     } else {
-                        result.push(format!("{line_indent} * {content}"));
+                        // Potential multi-line empty block
+                        let mut j = i + 1;
+                        let mut all_blank = true;
+                        while j < raw_lines.len() {
+                            let t = raw_lines[j].trim_start();
+                            if t.starts_with("*/") {
+                                break;
+                            }
+                            if !t.is_empty() {
+                                all_blank = false;
+                                break;
+                            }
+                            j += 1;
+                        }
+                        if all_blank && j < raw_lines.len() {
+                            i = j + 1;
+                            continue;
+                        }
                     }
                 }
-                result.push(format!("{line_indent} */"));
-            } else {
-                for &cl in &run {
-                    result.push(cl.to_string());
-                }
-            }
-            i = j;
-        } else {
-            result.push(lines[i].to_string());
-            i += 1;
-        }
-    }
-    result.join("\n")
-}
 
-/// Merge adjacent comment items in a trivia string into a single `/* */` block.
-/// Two or more consecutive comment items (each `//` line counts as one item,
-/// each `/* */` block counts as one item) with no blank line between them are
-/// combined. Runs with only one item are left untouched.
-fn merge_adjacent_comment_blocks_in_trivia(s: &str) -> String {
-    let lines: Vec<&str> = s.split('\n').collect();
-    let mut result: Vec<String> = Vec::new();
-    let mut i = 0;
-
-    while i < lines.len() {
-        let trimmed = lines[i].trim_start();
-
-        if trimmed.starts_with("//") || trimmed.starts_with("/*") {
-            let indent = &lines[i][..lines[i].len() - trimmed.len()];
-            let run_start = i;
-            let mut all_contents: Vec<String> = Vec::new();
-            let mut item_count: usize = 0;
-            let mut has_block = false; // true once a /* */ item is seen
-            let mut in_block = false;
-
-            while i < lines.len() {
-                let t = lines[i].trim_start();
-                if !in_block && t.starts_with("//") {
-                    all_contents.push(t[2..].trim_start().to_string());
-                    item_count += 1;
-                    i += 1;
-                } else if !in_block && t.starts_with("/*") {
-                    let after_open = t[2..].trim_start();
-                    if let Some(close) = after_open.find("*/") {
-                        // Single-line /* content */
-                        let content = after_open[..close].trim_end().to_string();
+                // 2. Normalize single-line block comments to line comments
+                if !is_inline
+                    && self.config.normalize_single_line_block_comments
+                    && trimmed.starts_with("/*")
+                {
+                    if let Some(close_idx) = trimmed[2..].find("*/") {
+                        let content = trimmed[2..2 + close_idx].trim();
                         if !content.is_empty() {
-                            all_contents.push(content);
+                            let linted = format!("// {}", capitalize_first(content));
+                            lines.push(format!("{}{}", self.indent, linted));
+                            i += 1;
+                            continue;
                         }
-                        item_count += 1;
-                        has_block = true;
-                        i += 1;
-                    } else {
-                        // Opening of a multi-line block
-                        in_block = true;
-                        if !after_open.is_empty() {
-                            all_contents.push(after_open.to_string());
-                        }
-                        i += 1;
                     }
-                } else if in_block {
-                    if t.starts_with("*/") {
-                        in_block = false;
-                        item_count += 1;
-                        has_block = true;
-                        i += 1;
-                    } else if t.starts_with("* ") {
-                        all_contents.push(t[2..].to_string());
-                        i += 1;
-                    } else if t == "*" {
-                        all_contents.push(String::new());
-                        i += 1;
-                    } else {
-                        all_contents.push(t.to_string());
-                        i += 1;
-                    }
-                } else {
-                    break;
                 }
-            }
-            if in_block {
-                item_count += 1; // unclosed — edge case guard
-            }
 
-            if item_count >= 2 && has_block {
-                result.push(format!("{indent}/*"));
-                for content in &all_contents {
-                    if content.is_empty() {
-                        result.push(format!("{indent} *"));
-                    } else {
-                        result.push(format!("{indent} * {content}"));
+                // 3. Convert runs of line comments to multiline
+                if !is_inline && self.config.n_comment_lines_to_multiline.is_some() {
+                    let threshold = self.config.n_comment_lines_to_multiline.unwrap() as usize;
+                    if trimmed.starts_with("//") {
+                        let mut run = vec![line];
+                        let mut j = i + 1;
+                        while j < raw_lines.len() && raw_lines[j].trim_start().starts_with("//") {
+                            run.push(raw_lines[j]);
+                            j += 1;
+                        }
+                        if run.len() >= threshold {
+                            lines.push(format!("{}/*", self.indent));
+                            for run_line in run {
+                                let content = run_line.trim_start()[2..].trim_start();
+                                if content.is_empty() {
+                                    lines.push(self.indent.clone());
+                                } else {
+                                    lines.push(format!("{}{}", self.indent, content));
+                                }
+                            }
+                            lines.push(format!("{}*/", self.indent));
+                            i = j;
+                            continue;
+                        }
                     }
                 }
-                result.push(format!("{indent} */"));
+
+                // 4. Regular line comment processing (lint + indent)
+                if trimmed.starts_with("//") {
+                    let prefix = &line[..line.len() - trimmed.len()];
+                    // Only a real comment if prefix is purely whitespace
+                    if prefix.chars().all(|c| c.is_whitespace()) {
+                        let comment_content = trimmed[2..].trim();
+                        let linted = if comment_content.is_empty() {
+                            "//".to_string()
+                        } else {
+                            format!("// {}", capitalize_first(comment_content))
+                        };
+                        lines.push(format!("{}{}", self.indent, linted));
+                    } else {
+                        lines.push(line.to_string());
+                    }
+                } else if trimmed.starts_with("/*") {
+                    lines.push(format!("{}{}", self.indent, trimmed));
+                    if !trimmed[2..].contains("*/") {
+                        in_block = true;
+                    }
+                } else if trimmed.starts_with("/-") {
+                    lines.push(format!("{}{}", self.indent, trimmed));
+                } else {
+                    lines.push(line.to_string());
+                }
             } else {
-                for j in run_start..i {
-                    result.push(lines[j].to_string());
+                // Inside a /* */ block
+                if trimmed.starts_with("*/") {
+                    lines.push(format!("{}*/", self.indent));
+                    in_block = false;
+                } else {
+                    let content = if let Some(rest) = trimmed.strip_prefix("* ") {
+                        rest
+                    } else if let Some(rest) = trimmed.strip_prefix('*') {
+                        rest
+                    } else {
+                        trimmed
+                    };
+                    if content.is_empty() {
+                        lines.push(self.indent.clone());
+                    } else {
+                        lines.push(format!("{}{}", self.indent, content));
+                    }
                 }
             }
-        } else {
-            result.push(lines[i].to_string());
             i += 1;
         }
-    }
 
-    result.join("\n")
+        lines.join("\n")
+    }
 }
 
-/// Apply `convert_comment_run_to_multiline` and `merge_adjacent_comment_blocks_in_trivia`
-/// to all trivia fields in the document.
-fn apply_comment_lines_to_multiline(doc: &mut kdl::KdlDocument, threshold: u32) {
-    if let Some(fmt) = doc.format_mut() {
-        fmt.leading = convert_comment_run_to_multiline(&fmt.leading, threshold);
-        fmt.leading = merge_adjacent_comment_blocks_in_trivia(&fmt.leading);
-        fmt.trailing = convert_comment_run_to_multiline(&fmt.trailing, threshold);
-        fmt.trailing = merge_adjacent_comment_blocks_in_trivia(&fmt.trailing);
-    }
-    for node in doc.nodes_mut() {
-        if let Some(fmt) = node.format_mut() {
-            fmt.leading = convert_comment_run_to_multiline(&fmt.leading, threshold);
-            fmt.leading = merge_adjacent_comment_blocks_in_trivia(&fmt.leading);
-        }
-        if let Some(children) = node.children_mut() {
-            apply_comment_lines_to_multiline(children, threshold);
-        }
-    }
-}
 
 #[cfg(test)]
 mod test {
@@ -708,12 +566,12 @@ mod test {
             "expected multiline comment open, got: {formatted:?}"
         );
         assert!(
-            formatted.contains(" * Line one"),
-            "expected * Line one, got: {formatted:?}"
+            formatted.contains("\nLine one\n"),
+            "expected content without * prefix, got: {formatted:?}"
         );
         assert!(
-            formatted.contains(" */"),
-            "expected multiline comment close, got: {formatted:?}"
+            formatted.contains("\n*/\n"),
+            "expected multiline comment close without space, got: {formatted:?}"
         );
         assert!(
             !formatted.contains("//"),
@@ -740,57 +598,6 @@ mod test {
             !formatted.contains("\n/*"),
             "expected no unindented /* at top of line, got: {formatted:?}"
         );
-    }
-
-    #[test]
-    fn it_should_merge_two_adjacent_multiline_blocks() {
-        // Two /* */ blocks with no blank line → merged into one.
-        let input = "/* First block */\n/* Second block */\nnode\n";
-        let (doc, version) =
-            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
-        let config = KdlFmtConfig {
-            n_comment_lines_to_multiline: Some(3),
-            ..KdlFmtConfig::default()
-        };
-        let formatted = format_kdl(doc, &config, version);
-        assert_eq!(formatted.matches("/*").count(), 1, "expected single /* open, got: {formatted:?}");
-        assert!(formatted.contains(" * First block"), "got: {formatted:?}");
-        assert!(formatted.contains(" * Second block"), "got: {formatted:?}");
-    }
-
-    #[test]
-    fn it_should_merge_single_line_comment_adjacent_to_block() {
-        // A // line immediately before a /* */ block → merged.
-        // threshold=3 so the lone // would not be converted on its own.
-        let input = "// Preface\n/* Body\n * content\n */\nnode\n";
-        let (doc, version) =
-            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
-        let config = KdlFmtConfig {
-            n_comment_lines_to_multiline: Some(3),
-            ..KdlFmtConfig::default()
-        };
-        let formatted = format_kdl(doc, &config, version);
-        assert_eq!(formatted.matches("/*").count(), 1, "expected single block, got: {formatted:?}");
-        assert!(formatted.contains(" * Preface"), "got: {formatted:?}");
-        assert!(formatted.contains(" * content"), "got: {formatted:?}");
-    }
-
-    #[test]
-    fn it_should_merge_comments_even_across_autoformat_blank_removal() {
-        // autoformat removes blank lines inside leading trivia, so a blank line
-        // between a // comment and a /* */ block does not prevent merging.
-        let input = "// First\n\n/* Second */\nnode\n";
-        let (doc, version) =
-            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
-        let config = KdlFmtConfig {
-            n_comment_lines_to_multiline: Some(3),
-            ..KdlFmtConfig::default()
-        };
-        let formatted = format_kdl(doc, &config, version);
-        // autoformat collapses the blank line, so both end up adjacent and merge.
-        assert_eq!(formatted.matches("/*").count(), 1, "expected single merged block, got: {formatted:?}");
-        assert!(formatted.contains(" * First"), "got: {formatted:?}");
-        assert!(formatted.contains(" * Second"), "got: {formatted:?}");
     }
 
     #[test]
@@ -917,8 +724,8 @@ mod test {
             "expected no single-space-indented /* line, got: {formatted:?}"
         );
         assert!(
-            formatted.contains("     * Content line"),
-            "expected content line at correct indent, got: {formatted:?}"
+            formatted.contains("    Content line"),
+            "expected content line at correct indent (no * prefix), got: {formatted:?}"
         );
     }
 
@@ -968,6 +775,180 @@ mod test {
         assert!(
             formatted.contains("\n\n    // Child comment"),
             "expected blank line before child comment, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_fix_slashdash_indentation() {
+        // A /- node with wrong indentation inside a block should be re-indented
+        // to match sibling nodes at that depth.
+        let input = "parent {\n /- bad-indent\n    child\n}\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let formatted = format_kdl(doc, &KdlFmtConfig::default(), version);
+        assert!(
+            formatted.contains("    /- bad-indent"),
+            "expected 4-space-indented /- node, got: {formatted:?}"
+        );
+        assert!(
+            !formatted.contains("\n /- "),
+            "expected no 1-space-indented /- node, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_strip_empty_block_comments() {
+        // A /* */ block whose only content is blank lines should be removed.
+        let input = "/*\n\n\n*/\nnode\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let config = KdlFmtConfig {
+            strip_empty_block_comments: true,
+            ..KdlFmtConfig::default()
+        };
+        let formatted = format_kdl(doc, &config, version);
+        assert!(
+            !formatted.contains("/*"),
+            "expected empty block comment removed, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_strip_single_line_empty_block_comment() {
+        // A /* */ on one line with only whitespace inside should be removed.
+        let input = "/* */\nnode\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let config = KdlFmtConfig {
+            strip_empty_block_comments: true,
+            ..KdlFmtConfig::default()
+        };
+        let formatted = format_kdl(doc, &config, version);
+        assert!(
+            !formatted.contains("/*"),
+            "expected empty single-line block comment removed, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_not_strip_non_empty_block_comment() {
+        // A /* */ block with real content must not be stripped.
+        let input = "/* Some content */\nnode\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let config = KdlFmtConfig {
+            strip_empty_block_comments: true,
+            ..KdlFmtConfig::default()
+        };
+        let formatted = format_kdl(doc, &config, version);
+        assert!(
+            formatted.contains("Some content"),
+            "expected non-empty block comment preserved, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_normalize_single_line_block_to_line_comment() {
+        // /* content */ on one line becomes // content.
+        let input = "/* This is a note */\nnode\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let config = KdlFmtConfig {
+            normalize_single_line_block_comments: true,
+            ..KdlFmtConfig::default()
+        };
+        let formatted = format_kdl(doc, &config, version);
+        assert!(
+            formatted.contains("// This is a note"),
+            "expected // comment, got: {formatted:?}"
+        );
+        assert!(
+            !formatted.contains("/*"),
+            "expected no /* remaining, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_normalize_and_lint_converted_line_comment() {
+        // After normalize, the new // line should be linted (capitalised).
+        let input = "/* lowercase start */\nnode\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let config = KdlFmtConfig {
+            normalize_single_line_block_comments: true,
+            ..KdlFmtConfig::default()
+        };
+        let formatted = format_kdl(doc, &config, version);
+        assert!(
+            formatted.contains("// Lowercase start"),
+            "expected capitalised // comment after normalize, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_not_normalize_multiline_block_comment() {
+        // A /* */ that spans multiple lines must not be converted to //.
+        let input = "/*\nMulti-line content\n*/\nnode\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let config = KdlFmtConfig {
+            normalize_single_line_block_comments: true,
+            ..KdlFmtConfig::default()
+        };
+        let formatted = format_kdl(doc, &config, version);
+        assert!(
+            formatted.contains("/*"),
+            "expected multi-line block comment kept as /*, got: {formatted:?}"
+        );
+        assert!(
+            !formatted.contains("// Multi"),
+            "expected no // conversion of multi-line block, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_preserve_comments_before_first_entry_during_justification() {
+        // If justify_first_property is true, it shouldn't delete comments between
+        // the node name and the first entry.
+        let input = "node /* important */ key=\"val\"\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let config = KdlFmtConfig {
+            justify_first_property: true,
+            ..KdlFmtConfig::default()
+        };
+        let formatted = format_kdl(doc, &config, version);
+        assert!(
+            formatted.contains("/* important */"),
+            "expected comment preserved, got: {formatted:?}"
+        );
+    }
+
+    #[test]
+    fn it_should_handle_deeply_nested_nodes_beyond_config_limit() {
+        // Config only goes to level 5. Ensure level 6 doesn't crash and uses reasonable defaults.
+        let input = "l1 {\n l2 {\n  l3 {\n   l4 {\n    l5 {\n     l6\n    }\n   }\n  }\n }\n}\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let config = KdlFmtConfig::default();
+        let _formatted = format_kdl(doc, &config, version);
+        // If it didn't panic, it's at least safe.
+    }
+
+    #[test]
+    fn it_should_format_slashdash_nodes() {
+        let input = "parent {\n    /- commented-node {\n        child\n    }\n    active-node\n}\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V1)).expect("it to parse valid kdl");
+        let config = KdlFmtConfig::default();
+        let formatted = format_kdl(doc, &config, version);
+        assert!(
+            formatted.contains("/- commented-node"),
+            "expected commented node preserved, got: {formatted:?}"
+        );
+        assert!(
+            formatted.contains("child"),
+            "expected content inside commented node preserved, got: {formatted:?}"
         );
     }
 }

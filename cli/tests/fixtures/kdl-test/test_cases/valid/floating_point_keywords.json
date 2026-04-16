@@ -1,0 +1,31 @@
+[
+  {
+    "type": null,
+    "name": "floats",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "inf"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "-inf"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "nan"
+        }
+      }
+    ],
+    "props": {},
+    "children": []
+  }
+]

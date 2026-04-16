@@ -1,0 +1,24 @@
+[
+  {
+    "type": null,
+    "name": "node",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "arg1"
+        }
+      },
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "arg2"
+        }
+      }
+    ],
+    "props": {},
+    "children": []
+  }
+]

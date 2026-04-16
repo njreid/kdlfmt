@@ -1,0 +1,17 @@
+[
+  {
+    "type": null,
+    "name": "node",
+    "args": [],
+    "props": {},
+    "children": [
+      {
+        "type": null,
+        "name": "inner_node",
+        "args": [],
+        "props": {},
+        "children": []
+      }
+    ]
+  }
+]

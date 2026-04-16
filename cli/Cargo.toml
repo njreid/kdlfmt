@@ -23,12 +23,14 @@ clap = { workspace = true }
 clap_complete = { workspace = true }
 clap_complete_nushell = { workspace = true }
 console = { workspace = true }
+dashmap = { workspace = true }
 ec4rs = { workspace = true }
 env_logger = { workspace = true }
 ignore = { workspace = true }
 kdl = { workspace = true }
 log = { workspace = true }
 miette = { workspace = true }
+rayon = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

@@ -1,0 +1,25 @@
+[
+  {
+    "type": null,
+    "name": "node",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "-10.0"
+        }
+      }
+    ],
+    "props": {
+      "prop": {
+        "type": null,
+        "value": {
+          "type": "number",
+          "value": "-15.0"
+        }
+      }
+    },
+    "children": []
+  }
+]

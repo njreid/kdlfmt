@@ -1,0 +1,17 @@
+[
+  {
+    "type": null,
+    "name": "ノード",
+    "args": [],
+    "props": {
+      "お名前": {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "ฅ^•ﻌ•^ฅ"
+        }
+      }
+    },
+    "children": []
+  }
+]

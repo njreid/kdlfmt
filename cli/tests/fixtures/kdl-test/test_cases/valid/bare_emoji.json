@@ -1,0 +1,17 @@
+[
+  {
+    "type": null,
+    "name": "😁",
+    "args": [
+      {
+        "type": null,
+        "value": {
+          "type": "string",
+          "value": "happy!"
+        }
+      }
+    ],
+    "props": {},
+    "children": []
+  }
+]

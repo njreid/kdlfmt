@@ -21,6 +21,10 @@ pub struct KdlFmtConfig {
     pub remove_trailing_blank_lines_in_blocks: bool,
     /// Collapse blocks with no child nodes to inline `{}`.
     pub collapse_empty_blocks: bool,
+    /// Remove `/* */` block comments whose content is entirely blank/whitespace.
+    pub strip_empty_block_comments: bool,
+    /// Convert single-line `/* content */` block comments to `// content`.
+    pub normalize_single_line_block_comments: bool,
 }
 
 impl Default for KdlFmtConfig {
@@ -36,6 +40,8 @@ impl Default for KdlFmtConfig {
             n_comment_lines_to_multiline: None,
             remove_trailing_blank_lines_in_blocks: false,
             collapse_empty_blocks: false,
+            strip_empty_block_comments: false,
+            normalize_single_line_block_comments: false,
         }
     }
 }
@@ -147,6 +153,24 @@ impl KdlFmtConfig {
                 config.collapse_empty_blocks = true;
                 config.from_kdlfmt_file = true;
             }
+
+            if doc
+                .get_arg(Self::strip_empty_block_comments_key())
+                .and_then(kdl::KdlValue::as_bool)
+                == Some(true)
+            {
+                config.strip_empty_block_comments = true;
+                config.from_kdlfmt_file = true;
+            }
+
+            if doc
+                .get_arg(Self::normalize_single_line_block_comments_key())
+                .and_then(kdl::KdlValue::as_bool)
+                == Some(true)
+            {
+                config.normalize_single_line_block_comments = true;
+                config.from_kdlfmt_file = true;
+            }
         }
 
         Ok(config)
@@ -208,10 +232,32 @@ impl KdlFmtConfig {
     }
 
     #[inline]
-    pub fn get_editorconfig_or_default(&self, path: &std::path::Path) -> Self {
-        if !self.from_kdlfmt_file
-            && let Ok(mut properties) = ec4rs::properties_of(path)
-        {
+    pub const fn strip_empty_block_comments_key() -> &'static str {
+        "strip_empty_block_comments"
+    }
+
+    #[inline]
+    pub const fn normalize_single_line_block_comments_key() -> &'static str {
+        "normalize_single_line_block_comments"
+    }
+
+    #[inline]
+    pub fn get_editorconfig_or_default(
+        &self,
+        path: &std::path::Path,
+        cache: &dashmap::DashMap<std::path::PathBuf, Self>,
+    ) -> Self {
+        if self.from_kdlfmt_file {
+            return self.clone();
+        }
+
+        if let Some(parent) = path.parent() {
+            if let Some(cached) = cache.get(parent) {
+                return cached.clone();
+            }
+        }
+
+        if let Ok(mut properties) = ec4rs::properties_of(path) {
             properties.use_fallbacks();
 
             let use_tabs = properties
@@ -219,7 +265,11 @@ impl KdlFmtConfig {
                 .is_ok_and(|indent_style| matches!(indent_style, IndentStyle::Tabs));
 
             let indent_size = properties.get::<ec4rs::property::IndentSize>().map_or(
-                if use_tabs { 1 } else { self.indent.len() },
+                if use_tabs {
+                    1
+                } else {
+                    self.indent.len()
+                },
                 |value| match value {
                     ec4rs::property::IndentSize::Value(value) => value,
                     ec4rs::property::IndentSize::UseTabWidth => {
@@ -236,7 +286,7 @@ impl KdlFmtConfig {
 
             let indent = Self::get_indent(indent_size, use_tabs);
 
-            return Self {
+            let config = Self {
                 use_tabs,
                 indent,
                 from_kdlfmt_file: false,
@@ -246,7 +296,15 @@ impl KdlFmtConfig {
                 n_comment_lines_to_multiline: self.n_comment_lines_to_multiline,
                 remove_trailing_blank_lines_in_blocks: self.remove_trailing_blank_lines_in_blocks,
                 collapse_empty_blocks: self.collapse_empty_blocks,
+                strip_empty_block_comments: self.strip_empty_block_comments,
+                normalize_single_line_block_comments: self.normalize_single_line_block_comments,
             };
+
+            if let Some(parent) = path.parent() {
+                cache.insert(parent.to_path_buf(), config.clone());
+            }
+
+            return config;
         }
 
         self.clone()

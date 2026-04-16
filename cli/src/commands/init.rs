@@ -55,6 +55,19 @@ pub fn run(args: &InitCommandArguments) -> Result<(), KdlFmtError> {
     )));
     doc.nodes_mut().push(collapse_node);
 
+    let mut strip_node = kdl::KdlNode::new(KdlFmtConfig::strip_empty_block_comments_key());
+    strip_node.push(kdl::KdlEntry::from(kdl::KdlValue::Bool(
+        config.strip_empty_block_comments,
+    )));
+    doc.nodes_mut().push(strip_node);
+
+    let mut normalize_node =
+        kdl::KdlNode::new(KdlFmtConfig::normalize_single_line_block_comments_key());
+    normalize_node.push(kdl::KdlEntry::from(kdl::KdlValue::Bool(
+        config.normalize_single_line_block_comments,
+    )));
+    doc.nodes_mut().push(normalize_node);
+
     let doc = format_kdl(doc, &KdlFmtConfig::default(), args.kdl_version.unwrap_or_default());
 
     std::fs::write(config_path, &doc).map_err(KdlFmtError::Io)

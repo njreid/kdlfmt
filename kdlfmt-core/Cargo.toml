@@ -1,0 +1,20 @@
+[package]
+name = "kdlfmt-core"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+description = "Library crate for kdlfmt: formatter, config, and parser helpers."
+documentation = { workspace = true }
+readme = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+license = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[dependencies]
+dashmap = { workspace = true }
+ec4rs = { workspace = true }
+kdl = { workspace = true }
+miette = { workspace = true }
+thiserror = { workspace = true }

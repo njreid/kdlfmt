@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["cli"]
+members = ["cli", "kdlfmt-core"]
 exclude = []
 
 [workspace.package]
@@ -32,6 +32,7 @@ miette = { version = "7.6.0", features = ["fancy"] }
 predicates = "3.1.4"
 rayon = "1.10.0"
 tempfile = "3.27.0"
+thiserror = "2"
 
 # The profile that 'dist' will build with
 [profile.dist]

@@ -54,7 +54,7 @@ impl KdlFmtConfig {
 
     #[inline]
     fn parse_config(config: &str) -> miette::Result<KdlDocument> {
-        parse_kdl(config, None).map(|(doc, _version)| doc)
+        parse_kdl(config, None, true).map(|(doc, _version)| doc)
     }
 
     #[inline]
@@ -93,9 +93,7 @@ impl KdlFmtConfig {
                 if let Some(children) = node.children() {
                     for i in 1..=5usize {
                         let key = format!("level{i}");
-                        if let Some(n) = children
-                            .get_arg(&key)
-                            .and_then(kdl::KdlValue::as_integer)
+                        if let Some(n) = children.get_arg(&key).and_then(kdl::KdlValue::as_integer)
                         {
                             config.newlines_before_comments[i - 1] = n.max(0) as u32;
                             config.from_kdlfmt_file = true;
@@ -117,9 +115,7 @@ impl KdlFmtConfig {
                 if let Some(children) = node.children() {
                     for i in 1..=5usize {
                         let key = format!("level{i}");
-                        if let Some(n) = children
-                            .get_arg(&key)
-                            .and_then(kdl::KdlValue::as_integer)
+                        if let Some(n) = children.get_arg(&key).and_then(kdl::KdlValue::as_integer)
                         {
                             config.newlines_after_close[i - 1] = n.clamp(0, 10) as u32;
                             config.from_kdlfmt_file = true;
@@ -265,11 +261,7 @@ impl KdlFmtConfig {
                 .is_ok_and(|indent_style| matches!(indent_style, IndentStyle::Tabs));
 
             let indent_size = properties.get::<ec4rs::property::IndentSize>().map_or(
-                if use_tabs {
-                    1
-                } else {
-                    self.indent.len()
-                },
+                if use_tabs { 1 } else { self.indent.len() },
                 |value| match value {
                     ec4rs::property::IndentSize::Value(value) => value,
                     ec4rs::property::IndentSize::UseTabWidth => {

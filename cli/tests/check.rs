@@ -30,6 +30,8 @@ const INVALID_V1_CODE: &str = r#""""""""#;
 
 const INVALID_V2_CODE: &str = r#""""""""#;
 
+const EXPRESSION_STRING_V2_CODE: &str = "rule `request.auth != nil`\n";
+
 fn kdlfmt_command(path: Option<&std::path::Path>) -> assert_cmd::Command {
     let mut cmd = assert_cmd::cargo_bin_cmd!("kdlfmt");
 
@@ -72,9 +74,11 @@ fn help_arg_outputs_message() {
 
 #[cfg(test)]
 mod auto {
+    use predicates::prelude::PredicateBooleanExt;
+
     use crate::{
-        BROKEN_V1_CODE, BROKEN_V2_CODE, FORMATTED_V1_CODE, FORMATTED_V2_CODE, INVALID_V1_CODE,
-        INVALID_V2_CODE, check_command, setup_test_input,
+        check_command, setup_test_input, BROKEN_V1_CODE, BROKEN_V2_CODE, EXPRESSION_STRING_V2_CODE,
+        FORMATTED_V1_CODE, FORMATTED_V2_CODE, INVALID_V1_CODE, INVALID_V2_CODE,
     };
 
     #[test]
@@ -100,6 +104,30 @@ mod auto {
         };
 
         Ok(())
+    }
+
+    #[test]
+    fn allows_expression_strings_by_default() {
+        check_command(None)
+            .arg("--stdin")
+            .write_stdin(EXPRESSION_STRING_V2_CODE)
+            .assert()
+            .success();
+    }
+
+    #[test]
+    fn rejects_expression_strings_when_disabled() {
+        check_command(None)
+            .arg("--stdin")
+            .arg("--no-expression-strings")
+            .write_stdin(EXPRESSION_STRING_V2_CODE)
+            .assert()
+            .failure()
+            .stderr(
+                predicates::str::contains("Expression strings are disabled at line 1, column 6")
+                    .and(predicates::str::contains("node `rule`"))
+                    .and(predicates::str::contains("argument 1")),
+            );
     }
 
     #[test]
@@ -253,7 +281,7 @@ mod auto {
 #[cfg(test)]
 mod v1 {
     use crate::{
-        BROKEN_V1_CODE, FORMATTED_V1_CODE, INVALID_V1_CODE, check_command, setup_test_input,
+        check_command, setup_test_input, BROKEN_V1_CODE, FORMATTED_V1_CODE, INVALID_V1_CODE,
     };
 
     #[test]
@@ -377,7 +405,7 @@ mod v1 {
 #[cfg(test)]
 mod v2 {
     use crate::{
-        BROKEN_V2_CODE, FORMATTED_V2_CODE, INVALID_V2_CODE, check_command, setup_test_input,
+        check_command, setup_test_input, BROKEN_V2_CODE, FORMATTED_V2_CODE, INVALID_V2_CODE,
     };
 
     #[test]

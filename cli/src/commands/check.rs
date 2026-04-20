@@ -2,10 +2,10 @@ use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::{
-    cli::{FormatCommandArguments, read_stdin},
+    cli::{read_stdin, FormatCommandArguments},
     config::KdlFmtConfig,
     error::KdlFmtError,
-    fs::{KDL_FILE_EXTENSION, setup_walker},
+    fs::{setup_walker, KDL_FILE_EXTENSION},
     kdl::{format_kdl, parse_kdl},
     terminal::print_check_changed_file,
 };
@@ -14,8 +14,8 @@ use crate::{
 fn run_from_stdin(args: &FormatCommandArguments, config: &KdlFmtConfig) -> Result<(), KdlFmtError> {
     let input = read_stdin().map_err(KdlFmtError::ReadStdin)?;
 
-    let (parsed, version) =
-        parse_kdl(&input, args.kdl_version).map_err(|error| KdlFmtError::ParseKdl(None, error))?;
+    let (parsed, version) = parse_kdl(&input, args.kdl_version, !args.no_expression_strings)
+        .map_err(|error| KdlFmtError::ParseKdl(None, error))?;
 
     let cache = dashmap::DashMap::new();
     let actual_config =
@@ -62,13 +62,12 @@ pub fn run_from_args(
             {
                 let input = std::fs::read_to_string(file_path).map_err(KdlFmtError::Io)?;
 
-                let (parsed, version) = parse_kdl(&input, args.kdl_version)
-                    .map_err(|error| KdlFmtError::ParseKdl(Some(file_path.to_path_buf()), error))?;
+                let (parsed, version) =
+                    parse_kdl(&input, args.kdl_version, !args.no_expression_strings).map_err(
+                        |error| KdlFmtError::ParseKdl(Some(file_path.to_path_buf()), error),
+                    )?;
 
-                let actual_config = config.get_editorconfig_or_default(
-                    file_path,
-                    &cache,
-                );
+                let actual_config = config.get_editorconfig_or_default(file_path, &cache);
 
                 let formatted = format_kdl(parsed, &actual_config, version);
 

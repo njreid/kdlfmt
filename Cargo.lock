@@ -466,8 +466,7 @@ dependencies = [
 [[package]]
 name = "kdl"
 version = "6.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81a29e7b50079ff44549f68c0becb1c73d7f6de2a4ea952da77966daf3d4761e"
+source = "git+https://github.com/njreid/kdl-rs?rev=05521dce0f3d2915f3fa6707f240c938dde3b818#05521dce0f3d2915f3fa6707f240c938dde3b818"
 dependencies = [
  "kdl 4.7.1",
  "miette 7.6.0",
@@ -1161,9 +1160,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "0.6.24"
+version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8d71a593cc5c42ad7876e2c1fda56f314f3754c084128833e64f1345ff8a03a"
+checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
 dependencies = [
  "memchr",
 ]

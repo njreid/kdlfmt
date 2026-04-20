@@ -56,6 +56,10 @@ pub struct FormatCommandArguments {
     /// Path to config file.
     #[arg(long)]
     pub config: Option<std::path::PathBuf>,
+
+    /// Reject non-standard backtick-delimited expression strings.
+    #[arg(long, default_value_t = false)]
+    pub no_expression_strings: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, PartialEq, Eq, Debug)]

@@ -1033,4 +1033,35 @@ mod test {
 
         assert_eq!(formatted, input);
     }
+
+    #[test]
+    fn it_should_round_trip_expression_string_properties_in_v2() {
+        let input =
+            "policy subject=`request.auth.claims.sub` match=```\nrequest.auth != nil\n```\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V2), true).expect("it to parse valid kdl");
+        let formatted = format_kdl(doc, &KdlFmtConfig::default(), version);
+
+        assert_eq!(formatted, input);
+    }
+
+    #[test]
+    fn it_should_round_trip_escaped_backticks_in_expression_strings() {
+        let input = "rule `has(\\`quoted\\`) && ok`\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V2), true).expect("it to parse valid kdl");
+        let formatted = format_kdl(doc, &KdlFmtConfig::default(), version);
+
+        assert_eq!(formatted, input);
+    }
+
+    #[test]
+    fn it_should_keep_multiline_expression_strings_multiline_when_single_line_content() {
+        let input = "rule match=```\nrequest.auth != nil\n```\n";
+        let (doc, version) =
+            parse_kdl(input, Some(KdlVersion::V2), true).expect("it to parse valid kdl");
+        let formatted = format_kdl(doc, &KdlFmtConfig::default(), version);
+
+        assert_eq!(formatted, input);
+    }
 }

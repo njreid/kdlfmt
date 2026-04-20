@@ -1,11 +1,11 @@
-use crate::{cli::KdlVersion, config::KdlFmtConfig};
+use crate::{FmtError, KdlFmtConfig, KdlVersion};
 
 #[inline]
 pub fn parse_kdl(
     input: &str,
     version: Option<KdlVersion>,
     allow_expression_strings: bool,
-) -> miette::Result<(kdl::KdlDocument, KdlVersion)> {
+) -> Result<(kdl::KdlDocument, KdlVersion), FmtError> {
     let (document, version) = match version {
         Some(KdlVersion::V1) => (kdl::KdlDocument::parse_v1(input)?, KdlVersion::V1),
         Some(KdlVersion::V2) => (kdl::KdlDocument::parse_v2(input)?, KdlVersion::V2),
@@ -26,7 +26,7 @@ pub fn parse_kdl(
 }
 
 #[inline]
-fn reject_expression_strings(document: &kdl::KdlDocument, input: &str) -> miette::Result<()> {
+fn reject_expression_strings(document: &kdl::KdlDocument, input: &str) -> Result<(), FmtError> {
     struct ExpressionStringLocation {
         span: miette::SourceSpan,
         node_name: String,
@@ -62,13 +62,13 @@ fn reject_expression_strings(document: &kdl::KdlDocument, input: &str) -> miette
 
     if let Some(location) = visit(document) {
         let (line, column) = line_and_column(input, location.span.offset());
-        Err(miette::miette!(
-            "Expression strings are disabled at line {}, column {} in node `{}` {}. Re-run without `--no-expression-strings` to allow backtick-delimited values.",
+        Err(FmtError::ExpressionStringRejected {
+            span: location.span,
             line,
             column,
-            location.node_name,
-            location.entry_label,
-        ))
+            node_name: location.node_name,
+            entry_label: location.entry_label,
+        })
     } else {
         Ok(())
     }
@@ -466,7 +466,7 @@ impl<'a> TriviaProcessor<'a> {
 #[cfg(test)]
 mod test {
     use super::parse_kdl;
-    use crate::{cli::KdlVersion, config::KdlFmtConfig, kdl::format_kdl};
+    use crate::{format_kdl, KdlFmtConfig, KdlVersion};
 
     #[test]
     fn it_should_be_reversible() {

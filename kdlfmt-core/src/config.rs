@@ -1,7 +1,7 @@
 use ec4rs::property::IndentStyle;
 use kdl::{FormatConfig, KdlDocument};
 
-use crate::{error::KdlFmtError, kdl::parse_kdl};
+use crate::{kdl::parse_kdl, FmtError};
 
 #[derive(Debug, Clone)]
 pub struct KdlFmtConfig {
@@ -53,23 +53,21 @@ impl KdlFmtConfig {
     }
 
     #[inline]
-    fn parse_config(config: &str) -> miette::Result<KdlDocument> {
+    fn parse_config(config: &str) -> Result<KdlDocument, FmtError> {
         parse_kdl(config, None, true).map(|(doc, _version)| doc)
     }
 
     #[inline]
-    pub fn load(path: Option<&std::path::PathBuf>) -> Result<Self, KdlFmtError> {
+    pub fn load(path: Option<&std::path::PathBuf>) -> Result<Self, FmtError> {
         let mut config = Self::default();
 
-        let config_result = path.map_or_else(
-            || std::fs::read_to_string(Self::filename()),
-            std::fs::read_to_string,
-        );
+        let config_result = match path {
+            Some(path) => Some(std::fs::read_to_string(path)?),
+            None => std::fs::read_to_string(Self::filename()).ok(),
+        };
 
-        if let Ok(config_str) = config_result {
-            // TODO: custom parse error
-            let doc = Self::parse_config(&config_str)
-                .map_err(|error| KdlFmtError::ParseKdl(None, error))?;
+        if let Some(config_str) = config_result {
+            let doc = Self::parse_config(&config_str)?;
 
             if doc
                 .get_arg(Self::use_tabs_key())

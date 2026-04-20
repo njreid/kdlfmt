@@ -1,5 +1,6 @@
 #[derive(Debug)]
 pub enum KdlFmtError {
+    Fmt(kdlfmt_core::FmtError),
     Io(std::io::Error),
     ParseKdl(Option<std::path::PathBuf>, miette::Error),
     ReadStdin(std::io::Error),
@@ -11,6 +12,7 @@ impl std::fmt::Display for KdlFmtError {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Fmt(error) => error.fmt(f),
             Self::Io(error) => error.fmt(f),
             Self::ReadStdin(error) => write!(f, "Error reading input from stdin - {error}"),
             Self::ParseKdl(maybe_path, error) => {
@@ -27,3 +29,9 @@ impl std::fmt::Display for KdlFmtError {
 }
 
 impl std::error::Error for KdlFmtError {}
+
+impl From<kdlfmt_core::FmtError> for KdlFmtError {
+    fn from(value: kdlfmt_core::FmtError) -> Self {
+        Self::Fmt(value)
+    }
+}

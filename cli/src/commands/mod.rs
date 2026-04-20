@@ -1,4 +1,5 @@
-use crate::{cli::Commands, config::KdlFmtConfig, error::KdlFmtError};
+use crate::{cli::Commands, error::KdlFmtError};
+use kdlfmt_core::KdlFmtConfig;
 
 mod check;
 mod completions;

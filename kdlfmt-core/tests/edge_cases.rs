@@ -1,8 +1,4 @@
-use crate::{
-    cli::KdlVersion,
-    config::KdlFmtConfig,
-    kdl::{format_kdl, parse_kdl},
-};
+use kdlfmt_core::{format_kdl, parse_kdl, KdlFmtConfig, KdlVersion};
 
 #[test]
 fn it_should_preserve_comments_before_first_entry_during_justification() {
@@ -11,10 +7,8 @@ fn it_should_preserve_comments_before_first_entry_during_justification() {
     let input = "node /* important */ key=\"val\"\n";
     let (doc, version) =
         parse_kdl(input, Some(KdlVersion::V1), true).expect("it to parse valid kdl");
-    let config = KdlFmtConfig {
-        justify_first_property: true,
-        ..KdlFmtConfig::default()
-    };
+    let mut config = KdlFmtConfig::default();
+    config.justify_first_property = true;
     let formatted = format_kdl(doc, &config, version);
     assert!(
         formatted.contains("/* important */"),

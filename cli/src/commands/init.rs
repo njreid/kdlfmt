@@ -1,9 +1,5 @@
-use crate::{
-    cli::InitCommandArguments,
-    config::KdlFmtConfig,
-    error::KdlFmtError,
-    kdl::format_kdl,
-};
+use crate::{cli::InitCommandArguments, error::KdlFmtError};
+use kdlfmt_core::{format_kdl, KdlFmtConfig};
 
 #[inline]
 pub fn run(args: &InitCommandArguments) -> Result<(), KdlFmtError> {
@@ -68,7 +64,11 @@ pub fn run(args: &InitCommandArguments) -> Result<(), KdlFmtError> {
     )));
     doc.nodes_mut().push(normalize_node);
 
-    let doc = format_kdl(doc, &KdlFmtConfig::default(), args.kdl_version.unwrap_or_default());
+    let doc = format_kdl(
+        doc,
+        &KdlFmtConfig::default(),
+        args.kdl_version.unwrap_or_default(),
+    );
 
     std::fs::write(config_path, &doc).map_err(KdlFmtError::Io)
 }

@@ -5,10 +5,8 @@ use terminal::{logging::setup_logger, print_error};
 
 mod cli;
 mod commands;
-mod config;
 mod error;
 mod fs;
-mod kdl;
 mod terminal;
 
 fn main() {

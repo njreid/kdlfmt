@@ -12,7 +12,12 @@ license = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
 
+[features]
+default = []
+clap = ["dep:clap"]
+
 [dependencies]
+clap = { workspace = true, optional = true }
 dashmap = { workspace = true }
 ec4rs = { workspace = true }
 kdl = { workspace = true }

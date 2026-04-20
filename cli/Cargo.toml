@@ -28,6 +28,7 @@ ec4rs = { workspace = true }
 env_logger = { workspace = true }
 ignore = { workspace = true }
 kdl = { workspace = true }
+kdlfmt-core = { path = "../kdlfmt-core", features = ["clap"] }
 log = { workspace = true }
 miette = { workspace = true }
 rayon = { workspace = true }

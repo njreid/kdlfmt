@@ -488,6 +488,7 @@ dependencies = [
  "env_logger",
  "ignore",
  "kdl 6.5.0",
+ "kdlfmt-core",
  "log",
  "miette 7.6.0",
  "predicates",
@@ -499,6 +500,7 @@ dependencies = [
 name = "kdlfmt-core"
 version = "0.1.6-b"
 dependencies = [
+ "clap",
  "dashmap",
  "ec4rs",
  "kdl 6.5.0",

@@ -2,6 +2,8 @@ use std::io::Read;
 
 use clap::{Args, Parser, Subcommand};
 
+pub use kdlfmt_core::KdlVersion;
+
 const HELP_TEMPLATE: &str = "\
 {before-help}{name} {version}
 {about-with-newline}{author-with-newline}
@@ -147,11 +149,4 @@ pub struct InitCommandArguments {
     /// By default all versions are tried
     #[arg(long, value_enum)]
     pub kdl_version: Option<KdlVersion>,
-}
-
-#[derive(clap::ValueEnum, Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum KdlVersion {
-    V1,
-    #[default]
-    V2,
 }

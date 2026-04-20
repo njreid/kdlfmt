@@ -101,6 +101,7 @@ pub fn format_kdl(
 
     // 1. Rescue comments that would be lost by autoformat (v2 inline comments)
     rescue_terminator_comments(input.nodes_mut());
+    rescue_entry_leading_comments(input.nodes_mut());
 
     // 2. Basic autoformat according to library defaults
     input.autoformat_config(&format_config);
@@ -269,6 +270,29 @@ fn rescue_terminator_comments(nodes: &mut [kdl::KdlNode]) {
         }
         if let Some(children) = node.children_mut() {
             rescue_terminator_comments(children.nodes_mut());
+        }
+    }
+}
+
+/// Preserve entry formatting when its leading trivia contains comments.
+///
+/// `autoformat_config` drops entry formatting by default, which also drops any
+/// comments stored in an entry's leading trivia. Mark those entries to keep
+/// their leading comment trivia through the autoformat pass.
+fn rescue_entry_leading_comments(nodes: &mut [kdl::KdlNode]) {
+    for node in nodes.iter_mut() {
+        for entry in node.entries_mut() {
+            let has_leading_comment = entry
+                .format()
+                .is_some_and(|fmt| fmt.leading.contains("//") || fmt.leading.contains("/*"));
+
+            if has_leading_comment {
+                entry.keep_format();
+            }
+        }
+
+        if let Some(children) = node.children_mut() {
+            rescue_entry_leading_comments(children.nodes_mut());
         }
     }
 }

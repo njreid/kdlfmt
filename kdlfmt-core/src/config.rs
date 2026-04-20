@@ -1,7 +1,7 @@
 use ec4rs::property::IndentStyle;
 use kdl::{FormatConfig, KdlDocument};
 
-use crate::{kdl::parse_kdl, FmtError};
+use crate::{FmtError, kdl::parse_kdl};
 
 #[derive(Debug, Clone)]
 pub struct KdlFmtConfig {
@@ -87,15 +87,14 @@ impl KdlFmtConfig {
                 config.from_kdlfmt_file = true;
             }
 
-            if let Some(node) = doc.get(Self::newlines_before_comments_key()) {
-                if let Some(children) = node.children() {
-                    for i in 1..=5usize {
-                        let key = format!("level{i}");
-                        if let Some(n) = children.get_arg(&key).and_then(kdl::KdlValue::as_integer)
-                        {
-                            config.newlines_before_comments[i - 1] = n.max(0) as u32;
-                            config.from_kdlfmt_file = true;
-                        }
+            if let Some(node) = doc.get(Self::newlines_before_comments_key())
+                && let Some(children) = node.children()
+            {
+                for i in 1..=5usize {
+                    let key = format!("level{i}");
+                    if let Some(n) = children.get_arg(&key).and_then(kdl::KdlValue::as_integer) {
+                        config.newlines_before_comments[i - 1] = n.max(0) as u32;
+                        config.from_kdlfmt_file = true;
                     }
                 }
             }
@@ -109,15 +108,14 @@ impl KdlFmtConfig {
                 config.from_kdlfmt_file = true;
             }
 
-            if let Some(node) = doc.get(Self::newlines_after_close_key()) {
-                if let Some(children) = node.children() {
-                    for i in 1..=5usize {
-                        let key = format!("level{i}");
-                        if let Some(n) = children.get_arg(&key).and_then(kdl::KdlValue::as_integer)
-                        {
-                            config.newlines_after_close[i - 1] = n.clamp(0, 10) as u32;
-                            config.from_kdlfmt_file = true;
-                        }
+            if let Some(node) = doc.get(Self::newlines_after_close_key())
+                && let Some(children) = node.children()
+            {
+                for i in 1..=5usize {
+                    let key = format!("level{i}");
+                    if let Some(n) = children.get_arg(&key).and_then(kdl::KdlValue::as_integer) {
+                        config.newlines_after_close[i - 1] = n.clamp(0, 10) as u32;
+                        config.from_kdlfmt_file = true;
                     }
                 }
             }
@@ -245,10 +243,10 @@ impl KdlFmtConfig {
             return self.clone();
         }
 
-        if let Some(parent) = path.parent() {
-            if let Some(cached) = cache.get(parent) {
-                return cached.clone();
-            }
+        if let Some(parent) = path.parent()
+            && let Some(cached) = cache.get(parent)
+        {
+            return cached.clone();
         }
 
         if let Ok(mut properties) = ec4rs::properties_of(path) {

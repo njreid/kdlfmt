@@ -16,6 +16,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use config::KdlFmtConfig;
 pub use error::FmtError;
-pub use high_level::{format_check, format_document, FormatCheck};
+pub use high_level::{FormatCheck, format_check, format_document};
 pub use kdl::{format_kdl, parse_kdl};
 pub use version::KdlVersion;

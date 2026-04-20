@@ -1,4 +1,4 @@
-use kdlfmt_core::{format_kdl, parse_kdl, KdlFmtConfig, KdlVersion};
+use kdlfmt_core::{KdlFmtConfig, KdlVersion, format_kdl, parse_kdl};
 
 #[test]
 fn parse_and_format_roundtrips_simple_kdl() {

@@ -4,7 +4,7 @@ members = ["cli", "kdlfmt-core"]
 exclude = []
 
 [workspace.package]
-version = "0.1.6-b"
+version = "0.2.0"
 authors = ["Mads Hougesen <mads@mhouge.dk>"]
 edition = "2024"
 description = "A code formatter for kdl documents."

@@ -171,20 +171,22 @@ fn apply_formatting(doc: &mut kdl::KdlDocument, config: &KdlFmtConfig, depth: us
         // b. Newlines before comments (skip first node at each level)
         if i > 0 && depth < 5 && config.newlines_before_comments[depth] > 0 {
             let n = config.newlines_before_comments[depth];
-            if let Some(fmt) = nodes[i].format_mut() {
-                if fmt.leading.contains("//") || fmt.leading.contains("/*") {
-                    fmt.leading.insert_str(0, &"\n".repeat(n as usize));
-                }
+            if let Some(fmt) = nodes[i].format_mut()
+                && (fmt.leading.contains("//") || fmt.leading.contains("/*"))
+            {
+                fmt.leading.insert_str(0, &"\n".repeat(n as usize));
             }
         }
 
         // c. Newlines after close (if block and has next node)
-        if i + 1 < len && depth < 5 && config.newlines_after_close[depth] > 0 {
-            if nodes[i].children().is_some() {
-                let n = config.newlines_after_close[depth];
-                if let Some(fmt) = nodes[i + 1].format_mut() {
-                    fmt.leading.insert_str(0, &"\n".repeat(n as usize));
-                }
+        if i + 1 < len
+            && depth < 5
+            && config.newlines_after_close[depth] > 0
+            && nodes[i].children().is_some()
+        {
+            let n = config.newlines_after_close[depth];
+            if let Some(fmt) = nodes[i + 1].format_mut() {
+                fmt.leading.insert_str(0, &"\n".repeat(n as usize));
             }
         }
 
@@ -205,15 +207,13 @@ fn apply_formatting(doc: &mut kdl::KdlDocument, config: &KdlFmtConfig, depth: us
         }
 
         // f. Collapse empty blocks
-        if config.collapse_empty_blocks {
-            if let Some(children) = node.children_mut() {
-                if children.nodes().is_empty() {
-                    if let Some(fmt) = children.format_mut() {
-                        fmt.leading = String::new();
-                        fmt.trailing = String::new();
-                    }
-                }
-            }
+        if config.collapse_empty_blocks
+            && let Some(children) = node.children_mut()
+            && children.nodes().is_empty()
+            && let Some(fmt) = children.format_mut()
+        {
+            fmt.leading = String::new();
+            fmt.trailing = String::new();
         }
 
         // g. Recurse to children
@@ -256,17 +256,17 @@ fn remove_trailing_blank_lines_before_braces(s: &str) -> String {
 /// start with `\n` with just `"\n"`, silently dropping the comment.
 fn rescue_terminator_comments(nodes: &mut [kdl::KdlNode]) {
     for node in nodes.iter_mut() {
-        if let Some(fmt) = node.format_mut() {
-            if fmt.terminator.contains("//") || fmt.terminator.contains("/*") {
-                // Strip the trailing newline(s) to get just the comment text.
-                let comment = fmt
-                    .terminator
-                    .trim_end_matches('\n')
-                    .trim_end_matches('\r')
-                    .to_string();
-                fmt.before_terminator.push_str(&comment);
-                fmt.terminator = "\n".to_string();
-            }
+        if let Some(fmt) = node.format_mut()
+            && (fmt.terminator.contains("//") || fmt.terminator.contains("/*"))
+        {
+            // Strip the trailing newline(s) to get just the comment text.
+            let comment = fmt
+                .terminator
+                .trim_end_matches('\n')
+                .trim_end_matches('\r')
+                .to_string();
+            fmt.before_terminator.push_str(&comment);
+            fmt.terminator = "\n".to_string();
         }
         if let Some(children) = node.children_mut() {
             rescue_terminator_comments(children.nodes_mut());
@@ -372,15 +372,14 @@ impl<'a> TriviaProcessor<'a> {
                 if !is_inline
                     && self.config.normalize_single_line_block_comments
                     && trimmed.starts_with("/*")
+                    && let Some(close_idx) = trimmed[2..].find("*/")
                 {
-                    if let Some(close_idx) = trimmed[2..].find("*/") {
-                        let content = trimmed[2..2 + close_idx].trim();
-                        if !content.is_empty() {
-                            let linted = format!("// {}", capitalize_first(content));
-                            lines.push(format!("{}{}", self.indent, linted));
-                            i += 1;
-                            continue;
-                        }
+                    let content = trimmed[2..2 + close_idx].trim();
+                    if !content.is_empty() {
+                        let linted = format!("// {}", capitalize_first(content));
+                        lines.push(format!("{}{}", self.indent, linted));
+                        i += 1;
+                        continue;
                     }
                 }
 
@@ -412,11 +411,11 @@ impl<'a> TriviaProcessor<'a> {
                 }
 
                 // 4. Regular line comment processing (lint + indent)
-                if trimmed.starts_with("//") {
+                if let Some(comment) = trimmed.strip_prefix("//") {
                     let prefix = &line[..line.len() - trimmed.len()];
                     // Only a real comment if prefix is purely whitespace
                     if prefix.chars().all(|c| c.is_whitespace()) {
-                        let comment_content = trimmed[2..].trim();
+                        let comment_content = comment.trim();
                         let linted = if comment_content.is_empty() {
                             "//".to_string()
                         } else {
@@ -426,9 +425,9 @@ impl<'a> TriviaProcessor<'a> {
                     } else {
                         lines.push(line.to_string());
                     }
-                } else if trimmed.starts_with("/*") {
+                } else if let Some(rest) = trimmed.strip_prefix("/*") {
                     lines.push(format!("{}{}", self.indent, trimmed));
-                    if !trimmed[2..].contains("*/") {
+                    if !rest.contains("*/") {
                         in_block = true;
                     }
                 } else if trimmed.starts_with("/-") {
@@ -466,7 +465,7 @@ impl<'a> TriviaProcessor<'a> {
 #[cfg(test)]
 mod test {
     use super::parse_kdl;
-    use crate::{format_kdl, KdlFmtConfig, KdlVersion};
+    use crate::{KdlFmtConfig, KdlVersion, format_kdl};
 
     #[test]
     fn it_should_be_reversible() {

@@ -2,12 +2,12 @@ use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::{
-    cli::{read_stdin, FormatCommandArguments},
+    cli::{FormatCommandArguments, read_stdin},
     error::KdlFmtError,
-    fs::{setup_walker, KDL_FILE_EXTENSION},
+    fs::{KDL_FILE_EXTENSION, setup_walker},
     terminal::{print_format_changed_file, print_format_finished, print_format_unchanged_file},
 };
-use kdlfmt_core::{format_kdl, parse_kdl, KdlFmtConfig};
+use kdlfmt_core::{KdlFmtConfig, format_kdl, parse_kdl};
 
 #[inline]
 fn run_from_stdin(args: &FormatCommandArguments, config: &KdlFmtConfig) -> Result<(), KdlFmtError> {

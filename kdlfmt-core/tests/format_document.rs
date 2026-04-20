@@ -1,4 +1,4 @@
-use kdlfmt_core::{format_check, format_document, KdlFmtConfig, KdlVersion};
+use kdlfmt_core::{KdlFmtConfig, KdlVersion, format_check, format_document};
 
 #[test]
 fn format_document_returns_formatted_string() {

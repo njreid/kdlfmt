@@ -1,6 +1,6 @@
 //! Convenience API combining parse + format in one call.
 
-use crate::{format_kdl, parse_kdl, FmtError, KdlFmtConfig, KdlVersion};
+use crate::{FmtError, KdlFmtConfig, KdlVersion, format_kdl, parse_kdl};
 
 /// Parse `source` as KDL and return the formatted output.
 pub fn format_document(

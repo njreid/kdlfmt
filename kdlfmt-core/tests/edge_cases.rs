@@ -1,4 +1,4 @@
-use kdlfmt_core::{format_kdl, parse_kdl, KdlFmtConfig, KdlVersion};
+use kdlfmt_core::{KdlFmtConfig, KdlVersion, format_kdl, parse_kdl};
 
 #[test]
 fn it_should_preserve_comments_before_first_entry_during_justification() {

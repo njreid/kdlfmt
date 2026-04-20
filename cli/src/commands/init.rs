@@ -1,5 +1,5 @@
 use crate::{cli::InitCommandArguments, error::KdlFmtError};
-use kdlfmt_core::{format_kdl, KdlFmtConfig};
+use kdlfmt_core::{KdlFmtConfig, format_kdl};
 
 #[inline]
 pub fn run(args: &InitCommandArguments) -> Result<(), KdlFmtError> {

@@ -476,7 +476,7 @@ dependencies = [
 
 [[package]]
 name = "kdlfmt"
-version = "0.1.6-b"
+version = "0.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -498,7 +498,7 @@ dependencies = [
 
 [[package]]
 name = "kdlfmt-core"
-version = "0.1.6-b"
+version = "0.2.0"
 dependencies = [
  "clap",
  "dashmap",

@@ -20,6 +20,6 @@ clap = ["dep:clap"]
 clap = { workspace = true, optional = true }
 dashmap = { workspace = true }
 ec4rs = { workspace = true }
-kdl = { workspace = true }
+kdl = { version = "6.5.0", git = "https://github.com/njreid/kdl-rs", rev = "05521dce0f3d2915f3fa6707f240c938dde3b818", features = ["v1", "expression-strings"] }
 miette = { workspace = true }
 thiserror = { workspace = true }

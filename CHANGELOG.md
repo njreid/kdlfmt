@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file. Dates are d
 
 #### [Unreleased](https://github.com/hougesen/kdlfmt/compare/v0.1.6...HEAD)
 
+## v0.2.0
+
+### Breaking / structural
+
+- Extracted formatter internals into a new `kdlfmt-core` library crate.
+  The `kdlfmt` CLI is now a thin wrapper; behavior, flags, config file,
+  and `.kdlfmtignore` semantics are unchanged.
+- `kdlfmt-core` exposes `format_document`, `format_check`, `parse_kdl`,
+  `format_kdl`, `KdlFmtConfig`, `KdlVersion`, and `FmtError`. Downstream
+  tools can now depend on the formatter without depending on the CLI.
+
 #### [v0.1.6](https://github.com/hougesen/kdlfmt/compare/v0.1.5...v0.1.6)
 
 > 28 February 2026

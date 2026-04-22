@@ -7,26 +7,27 @@ When a `.kdl` file opens in the editor, `kdli` needs to pick a schema. The model
 Evaluate in order; the first match wins.
 
 1. **Sibling file.** In the same directory as `foo.kdl`, look for `foo.ksl`. If present, use it.
-2. **Pragma.** First node in `foo.kdl` is a slashdash-commented `/- ksl-schema <name>`. `<name>` must resolve to `~/.config/kdl/registry/<name>.ksl`. If the file is missing, emit a diagnostic on the pragma line — do not fall through.
+2. **Pragma.** A `// ksl-schema <name>` line comment before any non-comment content in `foo.kdl`. `<name>` must resolve to `~/.config/kdl/registry/<name>.ksl`. If the file is missing, emit a diagnostic on line 0 — do not fall through.
 3. **Registry unique match.** Compile every `<name>.ksl` in the registry, extract its top-level `match {}` globs, test the open file's absolute path against each globset. If exactly one matches, use it.
-4. **Registry ambiguous match.** More than one schema matches. Emit an error diagnostic at `(line 0, col 0)` of the open file with message `"multiple schemas match this file: a, b, c. Add '/- ksl-schema <name>' at the top to pick one."` Offer one code action per candidate — see [`04-lsp-capabilities.md`](./04-lsp-capabilities.md).
+4. **Registry ambiguous match.** More than one schema matches. Emit an error diagnostic at `(line 0, col 0)` of the open file with message `"multiple schemas match this file: a, b, c. Add '// ksl-schema <name>' at the top to pick one."` Offer one code action per candidate — see [`04-lsp-capabilities.md`](./04-lsp-capabilities.md).
 5. **No match.** No schema bound. Formatting + KDL-level syntax diagnostics still work; validation is skipped silently.
 
 ## Pragma format
 
 ```kdl
-/- ksl-schema zellij
+// ksl-schema zellij
 
 other content…
 ```
 
 Rules:
 
-- Must be the **first node** in the document (after optional whitespace / line comments). Not the first *line* — KDL comments and blanks above are allowed.
-- Exactly one positional arg (the schema name). No props, no children.
-- `<name>` matches `[a-zA-Z0-9_-]+`. Anything else is a diagnostic on the arg.
-- The slashdash prefix (`/-`) makes the node a no-op for any KDL consumer that doesn't know about the pragma. This is the whole reason the pragma is shaped this way.
-- Resolution: join `<registry_dir>/<name>.ksl`; must exist and pass compilation. If not, diagnostic on the pragma.
+- Must appear before any non-comment, non-whitespace line. Blank lines and other `//` comments (copyright headers, etc.) above the pragma are allowed.
+- `//` must be at the start of the trimmed line.
+- Exactly one name token after `ksl-schema`; extra tokens are rejected to avoid ambiguity.
+- `<name>` matches `[a-zA-Z0-9_-]+`. Anything else is a diagnostic on that line.
+- The pragma is extracted via text-scan (not AST), so it is parser-agnostic.
+- Resolution: join `<registry_dir>/<name>.ksl`; must exist and pass compilation. If not, diagnostic at line 0.
 
 ## Registry layout
 
@@ -98,6 +99,6 @@ When the open document is itself a `.ksl`, the Resolver is bypassed — the effe
 |------|---------------------|---------|
 | Pragma references non-existent schema | pragma arg | `schema "<name>" not found in <registry_dir>` |
 | Pragma schema fails to compile | pragma arg, plus cascade to target file | `schema "<name>.ksl" has errors; see file` |
-| Ambiguous registry match | line 0 col 0 | `multiple schemas match: a, b. Add '/- ksl-schema <name>' to pick one.` |
+| Ambiguous registry match | line 0 col 0 | `multiple schemas match: a, b. Add '// ksl-schema <name>' to pick one.` |
 | Registry `.ksl` glob missing leading anchor | the pattern node | `pattern "<glob>" must start with /, ~, or $VAR` |
 | Registry `.ksl` glob invalid | the pattern node | propagated from `globset::Error` |

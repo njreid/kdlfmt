@@ -18,7 +18,7 @@ Pipeline per document (runs on `didOpen` and after every `didChange`):
 ```
 1. Parse the rope with kdl::KdlDocument::parse_v{1,2}() or parse_any per config.
 2. If KdlError → emit diagnostic(s) from the error's labels, return.
-3. Read the first node; if it is "/- ksl-schema <name>", capture <name>.
+3. Scan the source text for a `// ksl-schema <name>` line comment before non-comment content; capture `<name>` if found.
 4. Resolver.resolve(uri, pragma_name) → SchemaResolution.
 5. Match resolution:
    - Sibling | Pragma | RegistryUnique: get_or_compile → validate → emit.
@@ -109,7 +109,7 @@ Hover returns `None` when the cursor is in whitespace or outside any schema-know
 
 MVP actions:
 
-- **`"pick schema: <name>"`** — produced when the diagnostic at `(0,0)` is `registry-ambiguous`. One action per candidate. Writes `/- ksl-schema <name>\n` at offset `0` via a `WorkspaceEdit`. Groups under `CodeActionKind::QuickFix`.
+- **`"pick schema: <name>"`** — produced when the diagnostic at `(0,0)` is `registry-ambiguous`. One action per candidate. Writes `// ksl-schema <name>\n` at offset `0` via a `WorkspaceEdit`. Groups under `CodeActionKind::QuickFix`.
 - **`"add required prop <name>"`** — produced when a `missing-required-prop` diagnostic is present. Inserts `<name>=` at the end of the node declaration line.
 - **`"add required child node <name>"`** — for `missing-required-child`. Inserts `    <name>\n` inside the children block.
 
